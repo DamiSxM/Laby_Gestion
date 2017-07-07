@@ -30,12 +30,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Labyrinthe">
-      <HintPath>..\..\Labyrinthe\Labyrinthe\bin\Debug\Labyrinthe.dll</HintPath>
-    </Reference>
-    <Reference Include="Laby_Interfaces">
-      <HintPath>..\..\Laby_Interfaces\Laby_Interfaces\bin\Debug\Laby_Interfaces.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
@@ -49,6 +43,16 @@
   <ItemGroup>
     <Compile Include="Gestion.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Laby_Interfaces\Laby_Interfaces\Laby_Interfaces.csproj">
+      <Project>{e7c638ef-eafb-4880-8258-d6da5b9886fb}</Project>
+      <Name>Laby_Interfaces</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Laby_Maze\Laby_Maze\Laby_Maze.csproj">
+      <Project>{f7398ec8-8f7a-42dd-a5b3-02fa1d1d58b1}</Project>
+      <Name>Laby_Maze</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
