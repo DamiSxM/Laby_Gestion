@@ -1,11 +1,12 @@
-﻿using Laby_Interfaces;
-using Laby_Maze;
-using System;
+﻿using System;
 using System.Collections;
 using System.Drawing;
 using System.Runtime.Serialization;
+/*using Laby_Interfaces;
+using Laby_Maze;*/
 
-namespace Laby_Gestion
+//namespace Laby_Gestion
+namespace Labyrinthe
 {
     [Serializable]
     public class DataPosition
@@ -62,13 +63,17 @@ namespace Laby_Gestion
             _liaison.DataReceived += DataReceived;
             _liaison.ClientConnected += ClientConnected;
             _liaison.FinRechercheServer += FinRechercheServer;
+        }
 
+        public void Start()
+        {
+            _liaison.Start();
             PersoRandomPosition();
-
-            if (_liaison.IsServer()) // Gestion est créer après Liaison, donc l'évent FinRechercheServer est passé avant le += ligne 64
-            {
-                FinRechercheServer(true);
-            }
+        }
+        public void Start(Etat init)
+        {
+            _liaison.Start(init);
+            PersoRandomPosition();
         }
 
         void PersoRandomPosition()
@@ -77,8 +82,8 @@ namespace Laby_Gestion
             int x, y;
             do
             {
-                x = rnd.Next(0, _labyrinthe.Taille - 2);
-                y = rnd.Next(0, _labyrinthe.Taille - 2);
+                x = rnd.Next(_labyrinthe.Taille - 1);
+                y = rnd.Next(_labyrinthe.Taille - 1);
             } while (_labyrinthe.Labyrinthe[x, y] != 0);
 
             System.Diagnostics.Debug.WriteLine(string.Format("PersoRandomPosition : X {0}, Y {1}", x, y));
@@ -87,40 +92,39 @@ namespace Laby_Gestion
 
         void GenerationItems()
         {
-            System.Diagnostics.Debug.WriteLine(string.Format("GenerationItems"));
+            System.Diagnostics.Debug.WriteLine(string.Format("Gestion.GenerationItems"));
             System.Random rnd = new System.Random();
-            for (int i = 0; i < _labyrinthe.Taille; i++)
+            for (int i = 0; i < _labyrinthe.Taille * 2; i++)
             {
                 Point p;
                 int x, y;
                 bool isWall, isTileNotFree;
                 do
                 {
-                    x = rnd.Next(0, _labyrinthe.Taille - 2);
-                    y = rnd.Next(0, _labyrinthe.Taille - 2);
-                    p = new Point(x, y);
+                    x = rnd.Next(_labyrinthe.Taille - 1);
+                    y = rnd.Next(_labyrinthe.Taille - 1);
                     isWall = _labyrinthe.Labyrinthe[x, y] == 1;
-                    isTileNotFree = _items.ContainsKey(p);
-                } while (isWall & isTileNotFree); // Si c'est du sol et qu'il n'y a rien
+                    isTileNotFree = _items.Contains(new Point(x, y));
+                } while (isWall || isTileNotFree); // Si c'est du sol et qu'il n'y a rien
 
-                try
-                {
-                    _items.Add(p, "GrilleFermee");
-                }
-                catch (Exception) { }
+                p = new Point(x, y);
+                if (rnd.Next(2) == 0) _items.Add(p, Loot.CRATE);
+                else _items.Add(p, Loot.COIN);
             }
+            //_items.Clear(); // TEST
+            /*_items.Add(new Point(2, 2), Loot.COIN);
+            _items.Add(new Point(3, 3), Loot.COIN);*/
             _affichage.ItemsInit(_items);
-            System.Diagnostics.Debug.WriteLine(string.Format("GenerationItems : {0} items", _items.Count));
+            System.Diagnostics.Debug.WriteLine(string.Format("Gestion.GenerationItems : {0} items", _items.Count));
         }
 
         void ClientConnected(string ip)
         {
-            System.Diagnostics.Debug.WriteLine(string.Format("Le client {0} vient de se connecter", ip));
-            _liaison.SendDataTo(_labyrinthe.Labyrinthe, ip); // Envoyer labyrinthe
+            System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ClientConnected : {0} vient de se connecter", ip));
 
-            _liaison.SendDataTo(new DataPosition("player", _affichage.PersoGetPosition()), ip); // Envoi position server
-
-            _liaison.SendDataTo(_items, ip);
+            _liaison.SendDataTo(_labyrinthe.Labyrinthe, ip); // Envoyer labyrinthe au client
+            _liaison.SendDataTo(new DataPosition("player", _affichage.PersoGetPosition()), ip); // Envoi position server au client
+            _liaison.SendDataTo(_items, ip); // Envoyer les items au client
         }
 
         private void PositionChanged(int x, int y)
@@ -145,16 +149,18 @@ namespace Laby_Gestion
 
         void FinRechercheServer(bool isserver)
         {
-            System.Diagnostics.Debug.WriteLine("Gestion:FinRechercheServer isserver " + isserver);
-            if (isserver)
+            System.Diagnostics.Debug.WriteLine("Gestion.FinRechercheServer isserver " + isserver);
+            if (isserver) // Server
             {
                 _affichage.Debug("SERVER");
                 GenerationItems();
                 _affichage.Warfog(2);
             }
-            else
+            else // Client
             {
                 _affichage.Debug("CLIENT");
+
+                _liaison.SendData(new DataPosition("player", _affichage.PersoGetPosition())); // Envoi position client au server
                 _affichage.Warfog(4);
             }
         }
@@ -163,13 +169,12 @@ namespace Laby_Gestion
         {
             if (_liaison.IsServer())
             {
-                System.Diagnostics.Debug.WriteLine("SERVER");
+                System.Diagnostics.Debug.WriteLine(string.Format("SERVER : Gestion.DataReceived : {0}", data.GetType().ToString()));
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("CLIENT");
+                System.Diagnostics.Debug.WriteLine(string.Format("CLIENT : Gestion.DataReceived : {0}", data.GetType().ToString()));
             }
-            System.Diagnostics.Debug.WriteLine(data.GetType().ToString());
 
             if (data.GetType() == typeof(string)) ReceptionString(sender, (string)data);
             if (data.GetType() == typeof(int[,])) ReceptionLabyrinthe((int[,])data);
@@ -181,14 +186,7 @@ namespace Laby_Gestion
         {
             _items = items;
             _affichage.ItemsInit(_items);
-            System.Diagnostics.Debug.WriteLine(string.Format("Hashtable items {0}", _items.Count));
-
-            /*foreach (DictionaryEntry e in _items)
-            {
-                System.Diagnostics.Debug.WriteLine(string.Format("DictionaryEntry Key : {1}, Value : {2}", e.Key, e.Value));
-                //ReceptionItem((Point)e.Key);
-            }*/
-
+            System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionItems : {0} items", _items.Count));
         }
 
         private void ReceptionObjectInstruction(string sender, ObjectInstruction data)
@@ -198,12 +196,13 @@ namespace Laby_Gestion
                 if (data.Instruction == "add")
                 {
                     DataPosition dp = (DataPosition)data.Data;
-                    System.Diagnostics.Debug.WriteLine(string.Format("ReceptionObjectInstruction : Item add : X {0}, Y {1}", dp.Position.X, dp.Position.Y));
-                    _affichage.ItemAdd(dp.Position, (string)dp.Data);
+                    System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionObjectInstruction : Item add : X {0}, Y {1}", dp.Position.X, dp.Position.Y));
+                    _affichage.ItemAdd(dp.Position, (Loot)dp.Data);
                 }
                 else if (data.Instruction == "remove")
                 {
-                    System.Diagnostics.Debug.WriteLine(string.Format("ReceptionObjectInstruction : Item remove"));
+                    System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionObjectInstruction : Item remove"));
+                    _items.Remove((Point)data.Data);
                     _affichage.ItemRemove((Point)data.Data);
                 }
             }
@@ -211,7 +210,7 @@ namespace Laby_Gestion
             {
                 if (data.Instruction == "move")
                 {
-                    System.Diagnostics.Debug.WriteLine(string.Format("ReceptionObjectInstruction : Player move"));
+                    System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionObjectInstruction : Player move"));
                     ReceptionPlayer(sender, (Point)data.Data);
                 }
             }
@@ -219,7 +218,7 @@ namespace Laby_Gestion
 
         void ReceptionLabyrinthe(int[,] lab)
         {
-            System.Diagnostics.Debug.WriteLine("Nouveau Labyrinthe !");
+            System.Diagnostics.Debug.WriteLine("Gestion.ReceptionLabyrinthe : Nouveau Labyrinthe !");
             _labyrinthe.Labyrinthe = lab;
             _affichage.LabyUpdate();
             PersoRandomPosition();
@@ -231,11 +230,13 @@ namespace Laby_Gestion
         }
         void ReceptionPlayer(string ip, Point p)
         {
+            System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionPlayer : Perso[{0},{1}] Player[{2},{3}]", _affichage.PersoGetPosition().X, _affichage.PersoGetPosition().Y, p.X, p.Y));
             if (_affichage.PlayerExists(ip))
             {
-                System.Diagnostics.Debug.WriteLine(string.Format("{0} existe, move x{1}, y{2}", ip, p.X, p.Y));
+                System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionPlayer : {0} existe, move x{1}, y{2}", ip, p.X, p.Y));
                 _affichage.PlayerMove(ip, p);
 
+                System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionPlayer : _items.Contains(p) {0}", _items.Contains(p)));
                 if (_items.Contains(p))
                 {
                     System.Diagnostics.Debug.WriteLine(string.Format("ITEM !"));
@@ -249,15 +250,9 @@ namespace Laby_Gestion
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine(string.Format("{0} existe pas, add x{1}, y{2}", ip, p.X, p.Y));
+                System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ReceptionPlayer : {0} existe pas, add x{1}, y{2}", ip, p.X, p.Y));
                 _affichage.PlayerAdd(ip, p);
             }
-            System.Diagnostics.Debug.WriteLine(string.Format("PlayerMove Perso[{0},{1}] Player[{2},{3}]", _affichage.PersoGetPosition().X, _affichage.PersoGetPosition().Y, p.X, p.Y));
-        }
-        void ReceptionItem(Point p)
-        {
-            System.Diagnostics.Debug.WriteLine(string.Format("Ajout point x{1}, y{2}", p.X, p.Y));
-            //_affichage.ItemAdd(p.X, p.Y, "GrilleFermee");
         }
 
         public void PersoMove(Direction d)
@@ -306,24 +301,25 @@ namespace Laby_Gestion
             _affichage.PlayerRemove(ip);
         }
 
-        public void ItemAdd(Point p, string s)
+        public void ItemAdd(Point p, Loot s)
         {
             _affichage.ItemAdd(p, s);
             if (_liaison.IsFinRechercheServer())
             {
                 ObjectInstruction data = new ObjectInstruction(new DataPosition(s, p), "item", "add");
                 _liaison.SendData(data);
-                System.Diagnostics.Debug.WriteLine(string.Format("ItemAdd {0}, {1} : Envoi", p, s));
+                System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ItemAdd {0}, {1} : Envoi", p, s));
             }
         }
         public void ItemRemove(Point p)
         {
+            _items.Remove(p);
             _affichage.ItemRemove(p);
             if (_liaison.IsFinRechercheServer())
             {
-                ObjectInstruction data = new ObjectInstruction(new DataPosition(null, p), "item", "remove");
+                ObjectInstruction data = new ObjectInstruction(p, "item", "remove");
                 _liaison.SendData(data);
-                System.Diagnostics.Debug.WriteLine(string.Format("ItemRemove {0} : Envoi", p));
+                System.Diagnostics.Debug.WriteLine(string.Format("Gestion.ItemRemove {0} : Envoi", p));
             }
         }
     }
