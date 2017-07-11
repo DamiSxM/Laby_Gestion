@@ -50,6 +50,7 @@ namespace Labyrinthe
         IAffichage _affichage;
         ILiaison _liaison;
 
+        int _perso_vitesse = 2;
         Hashtable _items = new Hashtable();
 
         public Gestion(Maze labyrinthe, IAffichage affichage, ILiaison liaison)
@@ -257,7 +258,8 @@ namespace Labyrinthe
 
         public void PersoMove(Direction d)
         {
-            switch (d)
+            _affichage.PersoMove(d, _perso_vitesse);
+            /*switch (d)
             {
                 case Direction.LEFT:
                     _affichage.PersoMoveLeft();
@@ -271,7 +273,7 @@ namespace Labyrinthe
                 case Direction.DOWN:
                     _affichage.PersoMoveDown();
                     break;
-            }
+            }*/
             //_liaison.SendData(new DataPosition("player", _affichage.PersoGetPosition()));
         }
         public void PersoTeleport(Point p)
