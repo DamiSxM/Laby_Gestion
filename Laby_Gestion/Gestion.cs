@@ -143,38 +143,39 @@ namespace Labyrinthe
         private void PositionChanged(int x, int y)
         {
             System.Diagnostics.Debug.WriteLine(string.Format("{0} : Gestion.PositionChanged : X {1}, Y {2}", IsServer(), x, y));
+            Point p = new Point(x, y);
+
             if (_liaison.IsServer()) // Si on est le server
             {
-                ObjectInstruction data = new ObjectInstruction(new Point(x, y), "player", "move");
+                ObjectInstruction data = new ObjectInstruction(p, "player", "move");
                 _liaison.SendData(data); // Si il y a des clients, on leur envoi sa position
-                if (_items.Contains(new Point(x, y)))
+                if (_items.Contains(p))
                 {
-                    System.Diagnostics.Debug.WriteLine(string.Format("{0} : ITEM !", IsServer()));
-                    ItemRemove(new Point(x, y));
+                    System.Diagnostics.Debug.WriteLine(string.Format("{0} : ITEM ! : {1}", IsServer(), _items[p]));
+                    ItemEffect((Loot)_items[p]);
+                    ItemRemove(p);
                 }
             }
             else // Si on est un client
             {
-                ObjectInstruction data = new ObjectInstruction(new Point(x, y), "player", "move");
+                ObjectInstruction data = new ObjectInstruction(p, "player", "move");
                 _liaison.SendData(data); // On leur envoi sa position au server
             }
         }
 
         void FinRechercheServer(bool isserver)
         {
-            System.Diagnostics.Debug.WriteLine("Gestion.FinRechercheServer isserver " + isserver);
-            if (isserver) // Server
+            if (isserver)   // Server
             {
+                System.Diagnostics.Debug.WriteLine("Gestion.FinRechercheServer : SERVER");
                 _affichage.Debug("SERVER");
                 GenerationItems();
-                _affichage.Warfog(2);
             }
-            else // Client
+            else            // Client
             {
+                System.Diagnostics.Debug.WriteLine("Gestion.FinRechercheServer : CLIENT");
                 _affichage.Debug("CLIENT");
-
                 _liaison.SendData(new ObjectInstruction(_affichage.PersoGetPosition(), "player", "move"));
-                _affichage.Warfog(4);
             }
         }
 
@@ -220,6 +221,18 @@ namespace Labyrinthe
                     ReceptionPlayer(sender, (Point)data.Data);
                 }
             }
+            else if (data.Type == "effect")
+            {
+                System.Diagnostics.Debug.WriteLine(string.Format("{0} : Gestion.ReceptionObjectInstruction : effect {1}", IsServer(), data.Instruction));
+                if (data.Instruction == "addVitesse")
+                {
+                    PersoVitesse++;
+                }
+                else if (data.Instruction == "addVision")
+                {
+                    _affichage.WarfogSet(_affichage.WarfogGet() + 1);
+                }
+            }
         }
 
         void ReceptionLabyrinthe(int[,] lab)
@@ -251,7 +264,16 @@ namespace Labyrinthe
 
             if (_items.Contains(p)) // Si le player se déplace sur un objet :
             {
-                System.Diagnostics.Debug.WriteLine(string.Format("{0} : Gestion.ReceptionPlayer : ITEM !", IsServer()));
+                System.Diagnostics.Debug.WriteLine(string.Format("{0} : Gestion.ReceptionPlayer : ITEM ! : {1}", IsServer(), _items[p]));
+                switch ((Loot)_items[p])
+                {
+                    case Loot.CRATE:
+                        _liaison.SendDataTo(new ObjectInstruction(null, "effect", "addVision"), ip);
+                        break;
+                    case Loot.COIN:
+                        _liaison.SendDataTo(new ObjectInstruction(null, "effect", "addVitesse"), ip);
+                        break;
+                }
                 ItemRemove(p);
             }
             if (p == _affichage.PersoGetPosition()) // Si le player se déplace sur le joueur :
@@ -284,7 +306,7 @@ namespace Labyrinthe
 
             Point newPosition = new Point(currentPositionPixel.X + x, currentPositionPixel.Y + y);
             Point tmp = new Point((currentPositionPixel.X + x) / _cellSize, (currentPositionPixel.Y + y) / _cellSize);
-            Point tmpDown = new Point((currentPositionPixel.X + x) / _cellSize, (currentPositionPixel.Y + y + _cellSize/2) / _cellSize);
+            Point tmpDown = new Point((currentPositionPixel.X + x) / _cellSize, (currentPositionPixel.Y + y + _cellSize / 2) / _cellSize);
 
             int labyCase = _labyrinthe.Labyrinthe[tmp.X, tmp.Y];
             int labyCaseDown = _labyrinthe.Labyrinthe[tmp.X, tmpDown.Y];
@@ -292,12 +314,12 @@ namespace Labyrinthe
             {
                 case Direction.LEFT:
                     if (labyCase != 0)
-                        newPosition.X = (tmp.X+1) * _cellSize;
+                        newPosition.X = (tmp.X + 1) * _cellSize;
                     break;
 
                 case Direction.UP:
                     if (labyCase != 0)
-                        newPosition.Y = (tmp.Y+1) * _cellSize;
+                        newPosition.Y = (tmp.Y + 1) * _cellSize;
                     break;
 
                 case Direction.RIGHT:
@@ -310,7 +332,7 @@ namespace Labyrinthe
                         newPosition.Y = tmpDown.Y * _cellSize - _cellSize / 2;
                     break;
             }
-            
+
             _affichage.PersoMove(d, newPosition);
         }
         public void PersoTeleport(Point p)
@@ -361,6 +383,18 @@ namespace Labyrinthe
                 ObjectInstruction data = new ObjectInstruction(p, "item", "remove");
                 _liaison.SendData(data);
                 System.Diagnostics.Debug.WriteLine(string.Format("{0} : Gestion.ItemRemove {1} : Envoi aux clients", IsServer(), p));
+            }
+        }
+        void ItemEffect(Loot i)
+        {
+            switch (i)
+            {
+                case Loot.CRATE:
+                    _affichage.WarfogSet(_affichage.WarfogGet() + 1);
+                    break;
+                case Loot.COIN:
+                    PersoVitesse++;
+                    break;
             }
         }
     }
